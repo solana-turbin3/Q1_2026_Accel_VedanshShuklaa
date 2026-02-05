@@ -9,4 +9,7 @@ pub struct Escrow {
     pub mint_b: Pubkey,
     pub receive: u64,
     pub bump: u8,
+
+    //Created at field, remove this to test take normally
+    pub created_at: i64,
 }

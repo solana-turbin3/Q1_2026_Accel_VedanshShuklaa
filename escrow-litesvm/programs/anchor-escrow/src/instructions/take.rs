@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{associated_token::AssociatedToken, token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked, CloseAccount, close_account}};
 
+use crate::error::EscrowError;
 use crate::state::Escrow;
+
+const FIVE_DAYS: i64 = 5 * 24 * 60 * 60;
 
 //Create context
 #[derive(Accounts)]
@@ -59,6 +62,8 @@ pub struct Take<'info> {
 impl<'info> Take<'info> {
     pub fn deposit(&mut self) -> Result<()> {
         let cpi_program = self.token_program.to_account_info();
+
+        require!(self.escrow.created_at + FIVE_DAYS < Clock::get()?.unix_timestamp, EscrowError::TooEarlyToTake);
 
         let cpi_accounts = TransferChecked {
             from: self.taker_ata_b.to_account_info(),
