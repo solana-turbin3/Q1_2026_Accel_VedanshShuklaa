@@ -23,7 +23,7 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 # #url = "https://api.mainnet-beta.solana.com"
 
 # # [[test.validator.clone]]
-# # address = "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+# # address = "DdDDCwHseMjo4cXkbTPCFA1u5acXmbiEM7w7Dup9iK57"
 
 # # [[test.validator.clone]]
 # # address = "mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev"

@@ -4,7 +4,7 @@ import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { GetCommitmentSignature } from "@magicblock-labs/ephemeral-rollups-sdk";
 import { ErStateAccount } from "../target/types/er_state_account";
 
-describe("er-state-account", () => {
+describe("er state account", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -34,7 +34,14 @@ describe("er-state-account", () => {
     console.log("Current balance is", balance / LAMPORTS_PER_SOL, " SOL", "\n");
   });
 
+  const ERQueue = new PublicKey(
+    "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+  );
+
   const program = anchor.workspace.erStateAccount as Program<ErStateAccount>;
+
+  const ephemeralProgram = new Program(program.idl, providerEphemeralRollup);
+
 
   const userAccount = anchor.web3.PublicKey.findProgramAddressSync(
     [Buffer.from("user"), anchor.Wallet.local().publicKey.toBuffer()],
@@ -121,11 +128,13 @@ describe("er-state-account", () => {
   });
 
   it("Try randomize user state delegated", async () => {
-    let tx = await program.methods
-      .randomizeUserStateDelegated(1)
+
+    let tx = await ephemeralProgram.methods
+      .randomizeUserStateDelegated(0)
       .accountsPartial({
+        user: providerEphemeralRollup.wallet.publicKey,
         userAccount: userAccount,
-        payer: providerEphemeralRollup.wallet.publicKey,
+        oracleQueue: ERQueue,
       })
       .transaction();
 
@@ -134,12 +143,8 @@ describe("er-state-account", () => {
     tx.recentBlockhash = ( await providerEphemeralRollup.connection.getLatestBlockhash()).blockhash;
     tx = await providerEphemeralRollup.wallet.signTransaction(tx);  
     const txHash = await providerEphemeralRollup.sendAndConfirm(tx, [], { skipPreflight: false });
-    const txCommitSgn = await GetCommitmentSignature(
-      txHash,
-      providerEphemeralRollup.connection,
-    );
-    console.log("\nUser Account State Randomized Delegated: ", txHash);
     await new Promise(resolve => setTimeout(resolve, 2000));
+
     let number = await program.account.userAccount.fetch(userAccount);
     console.log("\nUser Account State Randomized Delegated: ", number.randomNumber);
   });
