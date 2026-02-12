@@ -4,6 +4,10 @@ import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { GetCommitmentSignature } from "@magicblock-labs/ephemeral-rollups-sdk";
 import { ErStateAccount } from "../target/types/er_state_account";
 
+const DEFAULT_EPHEMERAL_QUEUE = new PublicKey(
+  "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+);
+
 describe("er-state-account", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
@@ -95,7 +99,12 @@ describe("er-state-account", () => {
   });
 
   it("Update State and Commit to Base Layer!", async () => {
-    let tx = await program.methods
+    const ephemeralProgram = new anchor.Program(
+      program.idl,
+      providerEphemeralRollup
+    ) as typeof program;
+
+    let tx = await ephemeralProgram.methods
       .updateCommit(new anchor.BN(43))
       .accountsPartial({
         user: providerEphemeralRollup.wallet.publicKey,
@@ -121,11 +130,17 @@ describe("er-state-account", () => {
   });
 
   it("Try randomize user state delegated", async () => {
-    let tx = await program.methods
+    const ephemeralProgram = new anchor.Program(
+      program.idl,
+      providerEphemeralRollup
+    ) as typeof program;
+
+    let tx = await ephemeralProgram.methods
       .randomizeUserStateDelegated(1)
       .accountsPartial({
         userAccount: userAccount,
         payer: providerEphemeralRollup.wallet.publicKey,
+        oracleQueue: DEFAULT_EPHEMERAL_QUEUE,
       })
       .transaction();
 
@@ -134,14 +149,14 @@ describe("er-state-account", () => {
     tx.recentBlockhash = ( await providerEphemeralRollup.connection.getLatestBlockhash()).blockhash;
     tx = await providerEphemeralRollup.wallet.signTransaction(tx);  
     const txHash = await providerEphemeralRollup.sendAndConfirm(tx, [], { skipPreflight: false });
-    const txCommitSgn = await GetCommitmentSignature(
-      txHash,
-      providerEphemeralRollup.connection,
-    );
     console.log("\nUser Account State Randomized Delegated: ", txHash);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    let number = await program.account.userAccount.fetch(userAccount);
-    console.log("\nUser Account State Randomized Delegated: ", number.randomNumber);
+    console.log("  Waiting 5s for oracle callback...");
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    const accountInfo = await providerEphemeralRollup.connection.getAccountInfo(userAccount);
+    if (accountInfo) {
+      const randomNumber = accountInfo.data[48];
+      console.log("\nUser Account Random Number: ", randomNumber);
+    }
   });
 
   it("Commit and undelegate from Ephemeral Rollup!", async () => {

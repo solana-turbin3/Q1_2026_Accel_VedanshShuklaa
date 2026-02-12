@@ -38,7 +38,7 @@ impl<'info> RandomizeUserStateDelegated<'info> {
             ..Default::default()
         });
 
-        self.invoke_signed_vrf(&self.user_account.to_account_info(), &ix)?;
+        self.invoke_signed_vrf(&self.payer.to_account_info(), &ix)?;
 
         Ok(())
     }
