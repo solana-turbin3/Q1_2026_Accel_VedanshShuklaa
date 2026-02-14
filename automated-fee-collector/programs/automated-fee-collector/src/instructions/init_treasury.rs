@@ -1,9 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{
-    Mint,
-    TokenAccount,
-    TokenInterface,
-};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use anchor_spl::associated_token::AssociatedToken;
 
 #[derive(Accounts)]
@@ -16,12 +12,13 @@ pub struct InitTreasury<'info> {
         payer = authority,
         associated_token::mint = mint,
         associated_token::authority = authority,
-        associated_token::token_program = token_program,
+        associated_token::token_program = token_program, // required for token-2022 compatibility
     )]
     pub treasury: InterfaceAccount<'info, TokenAccount>,
 
     pub mint: InterfaceAccount<'info, Mint>,
 
+    // Use Interface<..., TokenInterface> when you use InterfaceAccount above
     pub token_program: Interface<'info, TokenInterface>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,

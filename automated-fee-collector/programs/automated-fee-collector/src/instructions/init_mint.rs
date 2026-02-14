@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::state::{FeeCollector, MintEntry};
+use crate::state::MintEntry;
 use anchor_lang::system_program::{create_account, CreateAccount};
 use anchor_spl::{
     token_2022::{
@@ -19,19 +19,11 @@ use anchor_spl::{
         TransferFeeInitialize,
     },
 };
-use crate::error::ErrorCode;
 
 #[derive(Accounts)]
 pub struct InitMint<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-
-    #[account(
-        seeds = [b"fee_collector", authority.key().as_ref()],
-        bump = fee_collector.bump,
-        has_one = authority @ ErrorCode::Unauthorized
-    )]
-    pub fee_collector: Account<'info, FeeCollector>,
 
     #[account(
         init,

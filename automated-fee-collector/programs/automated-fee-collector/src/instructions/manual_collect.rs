@@ -1,20 +1,22 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{
-    harvest_withheld_tokens_to_mint, HarvestWithheldTokensToMint, withdraw_withheld_tokens_from_mint, Mint, Token2022, TokenAccount,
+    harvest_withheld_tokens_to_mint, HarvestWithheldTokensToMint, withdraw_withheld_tokens_from_mint, Mint, TokenInterface, TokenAccount,
     WithdrawWithheldTokensFromMint,
 };
 
 #[derive(Accounts)]
 pub struct ManualCollect<'info> {
     pub authority: Signer<'info>,
-    
+
     #[account(mut)]
     pub mint_account: InterfaceAccount<'info, Mint>,
 
     #[account(mut)]
     pub treasury_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    pub token_program: Program<'info, Token2022>,
+    // must be Interface when using InterfaceAccount
+    pub token_program: Interface<'info, TokenInterface>,
+
     pub system_program: Program<'info, System>,
 }
 
