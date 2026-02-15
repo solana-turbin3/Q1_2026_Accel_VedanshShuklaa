@@ -16,10 +16,13 @@ use anchor_spl::{
 pub struct Transfer<'info> {
     #[account(mut)]
     pub sender: Signer<'info>,
-    pub recipient: SystemAccount<'info>,
+
+    /// CHECK: Recipient wallet
+    pub recipient: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub mint_account: InterfaceAccount<'info, Mint>,
+
     #[account(
         mut,
         associated_token::mint = mint_account,
@@ -27,6 +30,7 @@ pub struct Transfer<'info> {
         associated_token::token_program = token_program
     )]
     pub sender_token_account: InterfaceAccount<'info, TokenAccount>,
+
     #[account(
         init_if_needed,
         payer = sender,
@@ -35,26 +39,22 @@ pub struct Transfer<'info> {
         associated_token::token_program = token_program
     )]
     pub recipient_token_account: InterfaceAccount<'info, TokenAccount>,
+
     pub token_program: Program<'info, Token2022>,
+
     pub associated_token_program: Program<'info, AssociatedToken>,
+
     pub system_program: Program<'info, System>,
 }
 
-// transfer fees are automatically deducted from the transfer amount
-// recipients receives (transfer amount - fees)
-// transfer fees are stored directly on the recipient token account and must be "harvested"
 pub fn process_transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> {
-    // read mint account extension data
     let mint = &ctx.accounts.mint_account.to_account_info();
     let mint_data = mint.data.borrow();
     let mint_with_extension = StateWithExtensions::<MintState>::unpack(&mint_data)?;
     let extension_data = mint_with_extension.get_extension::<TransferFeeConfig>()?;
 
-    // calculate expected fee
     let epoch = Clock::get()?.epoch;
     let fee = extension_data.calculate_epoch_fee(epoch, amount).unwrap();
-
-    // mint account decimals
     let decimals = ctx.accounts.mint_account.decimals;
 
     transfer_checked_with_fee(
@@ -68,13 +68,13 @@ pub fn process_transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> {
                 authority: ctx.accounts.sender.to_account_info(),
             },
         ),
-        amount,   // transfer amount
-        decimals, // decimals
-        fee,      // fee
+        amount,
+        decimals,
+        fee,
     )?;
 
-    msg!("transfer amount {}", amount);
-    msg!("fee amount {}", fee);
+    msg!("Transfer amount: {}", amount);
+    msg!("Fee withheld: {}", fee);
 
     Ok(())
 }

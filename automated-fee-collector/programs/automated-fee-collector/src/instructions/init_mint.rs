@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use crate::state::MintEntry;
 use anchor_lang::system_program::{create_account, CreateAccount};
 use anchor_spl::{
     token_2022::{
@@ -25,16 +24,15 @@ pub struct InitMint<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    #[account(mut)]
+    pub mint: Signer<'info>,
+
+    /// CHECK: PDA that will be the withdraw withheld authority for automated collection
     #[account(
-        init,
-        payer = authority,
-        space = MintEntry::LEN,
-        seeds = [b"mint_entry", mint.key().as_ref()],
+        seeds = [b"fee_authority"],
         bump
     )]
-    pub mint_entry: Account<'info, MintEntry>,
-
-    pub mint: Signer<'info>,
+    pub fee_authority: UncheckedAccount<'info>,
 
     pub token_program: Program<'info, Token2022>,
 
@@ -43,17 +41,17 @@ pub struct InitMint<'info> {
 
 pub fn process_init_mint(
     ctx: Context<InitMint>,
+    decimals: u8,
     transfer_fee_basis_points: u16,
     maximum_fee: u64,
 ) -> Result<()> {
-    // Calculate space required for mint and extension data
+    // Calculate space required for mint with TransferFeeConfig extension
     let mint_size =
         ExtensionType::try_calculate_account_len::<PodMint>(&[ExtensionType::TransferFeeConfig])?;
 
-    // Calculate minimum lamports required for size of mint account with extensions
-    let lamports = (Rent::get()?).minimum_balance(mint_size);
+    let lamports = Rent::get()?.minimum_balance(mint_size);
 
-    // Invoke System Program to create new account with space for mint and extension data
+    // Create the mint account
     create_account(
         CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -62,13 +60,13 @@ pub fn process_init_mint(
                 to: ctx.accounts.mint.to_account_info(),
             },
         ),
-        lamports,                          // Lamports
-        mint_size as u64,                  // Space
-        &ctx.accounts.token_program.key(), // Owner Program
+        lamports,
+        mint_size as u64,
+        &ctx.accounts.token_program.key(),
     )?;
 
-    // Initialize the transfer fee extension data
-    // This instruction must come before the instruction to initialize the mint data
+    // Initialize transfer fee extension BEFORE initializing mint
+    // IMPORTANT: withdraw_withheld_authority is set to fee_authority PDA for automated collection
     transfer_fee_initialize(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -77,13 +75,13 @@ pub fn process_init_mint(
                 mint: ctx.accounts.mint.to_account_info(),
             },
         ),
-        Some(&ctx.accounts.authority.key()), // transfer fee config authority (update fee)
-        Some(&ctx.accounts.authority.key()), // withdraw authority (withdraw fees)
-        transfer_fee_basis_points,       // transfer fee basis points (% fee per transfer)
-        maximum_fee,                     // maximum fee (maximum units of token per transfer)
+        Some(&ctx.accounts.authority.key()),      // transfer_fee_config_authority (can update fee)
+        Some(&ctx.accounts.fee_authority.key()),  // withdraw_withheld_authority (PDA for automation!)
+        transfer_fee_basis_points,
+        maximum_fee,
     )?;
 
-    // Initialize the standard mint account data
+    // Initialize the mint
     initialize_mint2(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -91,39 +89,27 @@ pub fn process_init_mint(
                 mint: ctx.accounts.mint.to_account_info(),
             },
         ),
-        2,                               // decimals
-        &ctx.accounts.authority.key(),       // mint authority
-        Some(&ctx.accounts.authority.key()), // freeze authority
+        decimals,
+        &ctx.accounts.authority.key(),
+        Some(&ctx.accounts.authority.key()),
     )?;
 
-    ctx.accounts.init_mint(ctx.bumps.mint_entry)?;
+    // Verify extension data was set correctly
+    let mint = &ctx.accounts.mint.to_account_info();
+    let mint_data = mint.data.borrow();
+    let mint_with_extension = StateWithExtensions::<MintState>::unpack(&mint_data)?;
+    let extension_data = mint_with_extension.get_extension::<TransferFeeConfig>()?;
+
+    // Verify fee_authority is set as withdraw authority
+    assert_eq!(
+        extension_data.withdraw_withheld_authority,
+        OptionalNonZeroPubkey::try_from(Some(ctx.accounts.fee_authority.key()))?
+    );
+
+    msg!("Mint initialized with transfer fee extension");
+    msg!("Transfer fee: {} basis points", transfer_fee_basis_points);
+    msg!("Maximum fee: {}", maximum_fee);
+    msg!("Withdraw authority (PDA): {}", ctx.accounts.fee_authority.key());
+
     Ok(())
-}
-
-impl<'info> InitMint<'info> {
-    pub fn init_mint(&mut self, bump: u8) -> Result<()> {
-        let mint_entry = &mut self.mint_entry;
-        mint_entry.mint = self.mint.key();
-        mint_entry.bump = bump;
-
-        let mint = &self.mint.to_account_info();
-        let mint_data = mint.data.borrow();
-        let mint_with_extension = StateWithExtensions::<MintState>::unpack(&mint_data)?;
-        let extension_data = mint_with_extension.get_extension::<TransferFeeConfig>()?;
-        
-        assert_eq!(
-            extension_data.transfer_fee_config_authority,
-            OptionalNonZeroPubkey::try_from(Some(self.authority.key()))?
-        );
-
-        assert_eq!(
-            extension_data.withdraw_withheld_authority,
-            OptionalNonZeroPubkey::try_from(Some(self.authority.key()))?
-        );
-
-        msg!("{:?}", extension_data);
-
-        msg!("Mint tracked successfully: {}", mint_entry.mint);
-        Ok(())
-    }
 }

@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-automated_fee_collector = "CreDwxkpKU5ZxCVxQzrFpBxHzEtewY8FRP47BTj52Naw"
+automated_fee_collector = "8Axod2sBdMn6b7Nwicbtujwj6Gsv3wfBh6NjDtPPVKAh"
 
 [registry]
 url = "https://api.apr.dev"

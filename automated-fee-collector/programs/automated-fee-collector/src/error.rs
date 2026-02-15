@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum ErrorCode {
-    #[msg("Unauthorized access.")]
-    Unauthorized,
-    #[msg("Invalid treasury account.")]
-    InvalidTreasury,
-    #[msg("Mint mismatch.")]
-    InvalidMint,
+pub enum FeeCollectorError {
+    #[msg("Failed to compile transaction")]
+    CompileTransactionFailed,
+    #[msg("Invalid source account")]
+    InvalidSourceAccount,
+    #[msg("No fees to collect")]
+    NoFeesToCollect,
 }
